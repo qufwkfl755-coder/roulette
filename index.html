@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>럭키 듀얼 룰렛 (어드민 내장)</title>
+    <!-- Tailwind CSS 탑재 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons (아이콘 표시용) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800;900&display=swap');
+        
+        body {
+            font-family: 'Pretendard', sans-serif;
+            background: radial-gradient(circle at center, #110f24 0%, #070510 100%);
+        }
+
+        /* 부드러운 버튼 애니메이션 및 광채 효과 */
+        .neon-border-purple {
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.4);
+        }
+        .neon-border-pink {
+            box-shadow: 0 0 15px rgba(236, 72, 153, 0.4);
+        }
+        .neon-text {
+            text-shadow: 0 0 10px rgba(236, 72, 153, 0.6);
+        }
+
+        /* 당첨 축하 팝업 애니메이션 */
+        @keyframes scaleIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .scale-in {
+            animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+        }
+    </style>
+</head>
+<body class="text-white min-h-screen flex flex-col justify-between overflow-x-hidden selection:bg-pink-500 selection:text-white relative">
+
+    <!-- 헤더 영역 (비밀 설정 버튼에서 패스워드 표시 제거) -->
+    <header class="p-4 border-b border-purple-950/40 bg-black/40 backdrop-blur-md flex flex-col sm:flex-row justify-between items-center gap-4 px-6 z-10">
+        <button id="btnAdminGate" class="flex items-center gap-2 px-4 py-2.5 bg-slate-900/90 hover:bg-purple-900/60 border border-purple-800/50 rounded-xl transition-all text-purple-300 hover:text-white shadow-lg active:scale-95 text-sm font-bold shrink-0">
+            <i data-lucide="settings" class="w-4 h-4 animate-spin" style="animation-duration: 8s;"></i>
+            비밀 설정
+        </button>
+        <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-pink-500 via-purple-400 to-indigo-400 bg-clip-text text-transparent flex items-center justify-center gap-2">
+            <i data-lucide="compass" class="w-7 h-7 text-pink-500 animate-spin" style="animation-duration: 15s;"></i>
+            럭키 듀얼 네온 룰렛
+        </h1>
+        <div class="text-xs text-purple-300/40 sm:block hidden">독립형 개별 동작 시스템</div>
+    </header>
+
+    <!-- 메인 대시보드 구조 (크기가 확장된 좌측 룰렛 & 우측 룰렛 스플릿 레이아웃) -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 py-6 grid grid-cols-1 md:grid-cols-2 gap-8 items-center justify-center">
+        
+        <!-- [좌측 룰렛] 카드 컴포넌트 -->
+        <section class="flex flex-col items-center p-6 bg-slate-900/30 rounded-3xl border border-purple-900/20 backdrop-blur-sm relative overflow-hidden">
+            <div class="absolute top-4 left-4 px-3 py-1 bg-purple-900/50 border border-purple-700/40 rounded-full text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-purple-500 animate-ping"></span>
+                좌측 룰렛
+            </div>
+            
+            <!-- 룰렛 드로잉 본체 -->
+            <div class="relative w-80 h-80 sm:w-[420px] sm:h-[420px] flex items-center justify-center mt-6">
+                <!-- 바늘 -->
+                <div class="absolute -top-1.5 z-10 filter drop-shadow-[0_4px_6px_rgba(0,0,0,0.6)]">
+                    <svg width="38" height="42" viewBox="0 0 40 45" fill="none">
+                        <path d="M20 45L3.54071 16.5C1.1963 12.4404 4.12061 7.375 8.82424 7.375L31.1758 7.37501C35.8794 7.37501 38.8037 12.4404 36.4593 16.5L20 45Z" fill="#a855f7" />
+                        <circle cx="20" cy="14" r="5" fill="#ffffff" />
+                    </svg>
+                </div>
+                <div class="rounded-full overflow-hidden border-[10px] border-slate-900 shadow-[0_0_40px_rgba(168,85,247,0.15)] bg-slate-950">
+                    <canvas id="rouletteCanvas1" width="800" height="800" class="w-80 h-80 sm:w-[400px] sm:h-[400px] block transition-transform duration-75"></canvas>
+                </div>
+            </div>
+
+            <!-- 회전 제어 버튼 -->
+            <div class="mt-6 w-full max-w-xs">
+                <button id="btnAction1" class="w-full py-3.5 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-600 hover:to-indigo-600 text-white font-extrabold text-lg rounded-2xl shadow-lg transform active:scale-95 transition-all flex items-center justify-center gap-2 tracking-widest neon-border-purple">
+                    <i data-lucide="play" id="actionIcon1" class="w-5 h-5"></i>
+                    <span id="actionText1">돌리기</span>
+                </button>
+            </div>
+
+            <!-- [좌측 전용 결과 오버레이] -->
+            <div id="resultOverlay1" class="absolute inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 rounded-3xl border border-purple-500/40 z-20 scale-in hidden">
+                <div class="w-16 h-16 bg-purple-500/10 border border-purple-500/30 rounded-full flex items-center justify-center mb-3 animate-bounce">
+                    <i data-lucide="crown" class="w-8 h-8 text-purple-500"></i>
+                </div>
+                <p class="text-xs font-semibold tracking-wider text-purple-300 uppercase">🏆 좌측 룰렛 당첨 🏆</p>
+                <h3 id="winnerDisplay1" class="text-3xl md:text-4xl font-black text-white mt-3 mb-6 neon-text px-4 py-3 bg-slate-900/80 rounded-2xl border border-slate-800 break-words w-full max-w-xs text-center">
+                    -
+                </h3>
+                <div class="flex flex-col gap-2.5 w-full max-w-[240px]">
+                    <button onclick="deleteWinner(1)" class="w-full py-3 bg-red-600 hover:bg-red-500 text-sm font-bold text-white rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i> 이 옵션 삭제하기
+                    </button>
+                    <button onclick="closeWinner(1)" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-sm font-bold text-slate-200 rounded-xl active:scale-95 transition-all">
+                        그대로 두기 (확인)
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- [우측 룰렛] 카드 컴포넌트 -->
+        <section class="flex flex-col items-center p-6 bg-slate-900/30 rounded-3xl border border-pink-900/20 backdrop-blur-sm relative overflow-hidden">
+            <div class="absolute top-4 left-4 px-3 py-1 bg-pink-900/50 border border-pink-700/40 rounded-full text-xs font-bold text-pink-300 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-pink-500 animate-ping"></span>
+                우측 룰렛
+            </div>
+            
+            <!-- 룰렛 드로잉 본체 -->
+            <div class="relative w-80 h-80 sm:w-[420px] sm:h-[420px] flex items-center justify-center mt-6">
+                <!-- 바늘 -->
+                <div class="absolute -top-1.5 z-10 filter drop-shadow-[0_4px_6px_rgba(0,0,0,0.6)]">
+                    <svg width="38" height="42" viewBox="0 0 40 45" fill="none">
+                        <path d="M20 45L3.54071 16.5C1.1963 12.4404 4.12061 7.375 8.82424 7.375L31.1758 7.37501C35.8794 7.37501 38.8037 12.4404 36.4593 16.5L20 45Z" fill="#ec4899" />
+                        <circle cx="20" cy="14" r="5" fill="#ffffff" />
+                    </svg>
+                </div>
+                <div class="rounded-full overflow-hidden border-[10px] border-slate-900 shadow-[0_0_40px_rgba(236,72,153,0.15)] bg-slate-950">
+                    <canvas id="rouletteCanvas2" width="800" height="800" class="w-80 h-80 sm:w-[400px] sm:h-[400px] block transition-transform duration-75"></canvas>
+                </div>
+            </div>
+
+            <!-- 회전 제어 버튼 -->
+            <div class="mt-6 w-full max-w-xs">
+                <button id="btnAction2" class="w-full py-3.5 bg-gradient-to-r from-pink-700 to-rose-700 hover:from-pink-600 hover:to-rose-600 text-white font-extrabold text-lg rounded-2xl shadow-lg transform active:scale-95 transition-all flex items-center justify-center gap-2 tracking-widest neon-border-pink">
+                    <i data-lucide="play" id="actionIcon2" class="w-5 h-5"></i>
+                    <span id="actionText2">돌리기</span>
+                </button>
+            </div>
+
+            <!-- [우측 전용 결과 오버레이] -->
+            <div id="resultOverlay2" class="absolute inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 rounded-3xl border border-pink-500/40 z-20 scale-in hidden">
+                <div class="w-16 h-16 bg-pink-500/10 border border-pink-500/30 rounded-full flex items-center justify-center mb-3 animate-bounce">
+                    <i data-lucide="crown" class="w-8 h-8 text-pink-500"></i>
+                </div>
+                <p class="text-xs font-semibold tracking-wider text-pink-300 uppercase">🏆 우측 룰렛 당첨 🏆</p>
+                <h3 id="winnerDisplay2" class="text-3xl md:text-4xl font-black text-white mt-3 mb-6 neon-text px-4 py-3 bg-slate-900/80 rounded-2xl border border-slate-800 break-words w-full max-w-xs text-center">
+                    -
+                </h3>
+                <div class="flex flex-col gap-2.5 w-full max-w-[240px]">
+                    <button onclick="deleteWinner(2)" class="w-full py-3 bg-red-600 hover:bg-red-500 text-sm font-bold text-white rounded-xl active:scale-95 transition-all flex items-center justify-center gap-1.5">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i> 이 옵션 삭제하기
+                    </button>
+                    <button onclick="closeWinner(2)" class="w-full py-3 bg-slate-800 hover:bg-slate-700 text-sm font-bold text-slate-200 rounded-xl active:scale-95 transition-all">
+                        그대로 두기 (확인)
+                    </button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- 비밀번호 보안인증 모달 -->
+    <div id="passwordModal" class="fixed inset-0 bg-black/90 backdrop-blur-md flex items-center justify-center z-50 p-4 hidden">
+        <div class="bg-slate-900 border border-purple-500/50 w-full max-w-sm p-6 rounded-2xl text-center shadow-2xl scale-in">
+            <div class="w-12 h-12 bg-purple-500/10 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i data-lucide="lock" class="text-purple-400"></i>
+            </div>
+            <h3 class="text-lg font-bold text-white mb-2">관리자 보안 인증</h3>
+            <p class="text-xs text-slate-400 mb-4">비밀 모드 접근을 위해 비밀번호를 입력하십시오.</p>
+            <input type="password" id="adminPasswordInput" placeholder="Password"
+                class="w-full px-4 py-3 bg-slate-950 border border-purple-900/50 rounded-xl text-center font-bold tracking-widest text-lg text-white placeholder-slate-600 focus:outline-none focus:border-purple-500 mb-4">
+            <div class="flex gap-2">
+                <button id="btnCancelPass" class="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg">닫기</button>
+                <button id="btnVerifyPass" class="flex-1 py-2.5 bg-purple-700 hover:bg-purple-600 text-xs font-semibold rounded-lg text-white">확인</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 통합 비밀 관리자 설정 패널 모달 (좌/우 룰렛 설정 탭 탑재) -->
+    <div id="adminSettingsModal" class="fixed inset-0 bg-black/85 backdrop-blur-md flex items-center justify-center z-50 p-4 hidden">
+        <div class="bg-gradient-to-b from-slate-900 to-slate-950 border border-purple-500/30 w-full max-w-2xl p-6 rounded-3xl shadow-2xl flex flex-col max-h-[90vh] scale-in">
+            
+            <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+                <h3 class="text-xl font-bold text-transparent bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text flex items-center gap-2">
+                    <i data-lucide="sliders" class="text-purple-400"></i>
+                    비밀 듀얼 설정 마스터룸
+                </h3>
+                <button id="btnCloseAdmin" class="text-slate-400 hover:text-white"><i data-lucide="x"></i></button>
+            </div>
+
+            <!-- 좌/우 세팅 전환 탭 내비게이터 -->
+            <div class="flex border-b border-slate-800 mt-4 shrink-0">
+                <button id="tabBtn1" class="flex-1 py-3 text-center text-sm font-extrabold border-b-2 border-purple-500 text-purple-400 focus:outline-none transition-all">
+                    💜 좌측 룰렛 설정
+                </button>
+                <button id="tabBtn2" class="flex-1 py-3 text-center text-sm font-extrabold border-b-2 border-transparent text-slate-400 hover:text-slate-200 focus:outline-none transition-all">
+                    💖 우측 룰렛 설정
+                </button>
+            </div>
+
+            <!-- 내용 입력란 -->
+            <div class="flex-1 overflow-y-auto py-4 space-y-6">
+                
+                <!-- Section 1: 조작 옵션 (교대 선정 토글) -->
+                <div class="bg-slate-950/60 p-4 rounded-xl border border-purple-900/20 flex items-center justify-between">
+                    <div>
+                        <h4 class="font-bold text-purple-200 flex items-center gap-1.5">
+                            <i data-lucide="git-compare" class="w-4 h-4 text-pink-500"></i>
+                            교대 선정 모드 활성화 (조작)
+                        </h4>
+                        <p class="text-xs text-slate-400 mt-0.5">마스터 집단과 러너 집단을 교대로 당첨시킵니다.</p>
+                        <p id="nextGroupIndicator" class="text-[11px] text-pink-400 font-semibold mt-1">대기 중: 양쪽 집단 균등 확률</p>
+                    </div>
+                    <!-- 토글 스위치 -->
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="alternateToggle" class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                    </label>
+                </div>
+
+                <!-- Section 2: 항목 추가 서브 탭 (단일 추가 vs 일괄 추가) -->
+                <div class="bg-slate-950/40 p-4 rounded-2xl border border-slate-800 space-y-4">
+                    <div class="flex border-b border-slate-800/80 pb-2 gap-4">
+                        <button type="button" id="addMethodBtnSingle" onclick="switchAddMethod('single')" class="text-sm font-bold text-purple-400 border-b-2 border-purple-500 pb-1 focus:outline-none transition-all">
+                            단일 추가
+                        </button>
+                        <button type="button" id="addMethodBtnBulk" onclick="switchAddMethod('bulk')" class="text-sm font-bold text-slate-400 hover:text-slate-200 pb-1 focus:outline-none transition-all">
+                            일괄 추가 (대량 등록)
+                        </button>
+                    </div>
+
+                    <!-- 단일 추가 컨테이너 -->
+                    <div id="addSingleContainer" class="space-y-3">
+                        <h4 class="font-bold text-slate-300 text-xs flex items-center gap-1.5" id="addTitleLabel">
+                            <i data-lucide="plus-circle" class="w-3.5 h-3.5 text-purple-400"></i>
+                            좌측 룰렛 새 항목 추가
+                        </h4>
+                        <form id="itemForm" class="flex gap-2">
+                            <input type="text" id="itemInput" placeholder="새 옵션 입력 (예: 9번 또는 이름)" required maxlength="20"
+                                class="flex-1 px-4 py-2.5 bg-slate-950 border border-purple-900/50 rounded-xl text-sm focus:outline-none focus:border-pink-500 text-white placeholder-slate-500 transition-all">
+                            <button type="submit" class="px-5 bg-purple-700 hover:bg-purple-600 active:scale-95 text-white font-semibold rounded-xl text-sm transition-all flex items-center gap-1 shrink-0">
+                                <i data-lucide="plus" class="w-4 h-4"></i> 추가
+                            </button>
+                        </form>
+                    </div>
+
+                    <!-- 일괄 추가 컨테이너 -->
+                    <div id="addBulkContainer" class="hidden space-y-4">
+                        <!-- 방식 A: 연속 숫자 범위 추가 -->
+                        <div class="p-3 bg-slate-900/50 rounded-xl border border-slate-800 space-y-2">
+                            <span class="text-xs font-bold text-purple-300 flex items-center gap-1">
+                                <i data-lucide="list-ordered" class="w-3.5 h-3.5"></i> 방법 1: 연속 번호 자동 생성
+                            </span>
+                            <div class="grid grid-cols-3 gap-2">
+                                <div>
+                                    <label class="block text-[10px] text-slate-400 mb-1">시작 번호</label>
+                                    <input type="number" id="bulkStartNum" value="1" min="1" max="100" class="w-full px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-sm focus:outline-none focus:border-purple-500 text-center">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-slate-400 mb-1">끝 번호</label>
+                                    <input type="number" id="bulkEndNum" value="10" min="1" max="100" class="w-full px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-sm focus:outline-none focus:border-purple-500 text-center">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-slate-400 mb-1">접미사 (기본: 번)</label>
+                                    <input type="text" id="bulkSuffix" value="번" placeholder="예: 번" class="w-full px-3 py-1.5 bg-slate-950 border border-slate-800 rounded-lg text-sm focus:outline-none focus:border-purple-500 text-center">
+                                </div>
+                            </div>
+                            <button type="button" onclick="generateBulkNumbers()" class="w-full mt-1 py-2 bg-purple-700 hover:bg-purple-600 text-xs font-bold rounded-lg transition-all active:scale-98">
+                                번호 일괄 자동 생성하기
+                            </button>
+                        </div>
+
+                        <!-- 방식 B: 텍스트 분할 대량 추가 -->
+                        <div class="p-3 bg-slate-900/50 rounded-xl border border-slate-800 space-y-2">
+                            <span class="text-xs font-bold text-pink-300 flex items-center gap-1">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i> 방법 2: 쉼표(,) 또는 줄바꿈으로 대량 추가
+                            </span>
+                            <textarea id="bulkTextArea" rows="3" placeholder="예: 1반, 2반, 3반, 4반, 5반&#10;(또는 줄바꿈으로 여러 줄을 붙여넣으세요)"
+                                class="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs focus:outline-none focus:border-pink-500 text-white placeholder-slate-600 transition-all resize-none"></textarea>
+                            <button type="button" onclick="generateBulkText()" class="w-full py-2 bg-pink-700 hover:bg-pink-600 text-xs font-bold rounded-lg transition-all active:scale-98">
+                                목록 전체 추가하기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 3: 통합 목록 관리 대시보드 -->
+                <div class="space-y-3">
+                    <div class="flex justify-between items-center">
+                        <h4 class="font-bold text-slate-300 text-sm flex items-center gap-1.5">
+                            <i data-lucide="users" class="w-4 h-4 text-purple-400"></i>
+                            항목 편집 및 집단 분류 지정
+                        </h4>
+                        <span class="text-xs text-purple-400">등록 완료: <span id="adminTotalCount" class="font-bold">0</span>개</span>
+                    </div>
+                    
+                    <div class="border border-slate-800 rounded-xl overflow-hidden bg-slate-950/40">
+                        <div class="grid grid-cols-12 gap-2 p-3 bg-slate-900 text-xs font-semibold text-slate-400 border-b border-slate-800">
+                            <div class="col-span-5">항목(이름/번호)</div>
+                            <div class="col-span-5 text-center">집단 분류 (교대 조작용)</div>
+                            <div class="col-span-2 text-right">삭제</div>
+                        </div>
+                        <div id="itemListContainer" class="divide-y divide-slate-800 max-h-60 overflow-y-auto">
+                            <!-- 동적 분류 관리 및 삭제 리스트가 배치됨 -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Section 4: 퀵 액션 일괄 제어 단추 -->
+                <div class="flex gap-3 pt-2">
+                    <button onclick="resetCurrentToDefault()" class="flex-1 py-3 bg-slate-950 hover:bg-slate-800 text-xs font-semibold text-slate-300 rounded-xl border border-slate-800 transition-all flex items-center justify-center gap-1.5">
+                        <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+                        현재 룰렛 기본값 복원
+                    </button>
+                    <button onclick="clearCurrentAllItems()" class="flex-1 py-3 bg-red-950/40 hover:bg-red-900/30 text-xs font-semibold text-red-300 rounded-xl border border-red-900/30 transition-all flex items-center justify-center gap-1.5">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        현재 룰렛 비우기
+                    </button>
+                </div>
+            </div>
+
+            <!-- 하단 완료 -->
+            <div class="pt-4 border-t border-slate-800 flex justify-end shrink-0">
+                <button id="btnSaveAdmin" class="px-6 py-2.5 bg-gradient-to-r from-purple-700 to-pink-600 hover:from-purple-600 hover:to-pink-500 text-sm font-bold rounded-xl transition-all">
+                    적용 완료 및 닫기
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 입자 파편(폭죽) 효과용 백그라운드 캔버스 -->
+    <canvas id="confettiCanvas" class="fixed inset-0 pointer-events-none z-40 hidden"></canvas>
+
+    <!-- 푸터 단락 -->
+    <footer class="p-4 text-center text-xs text-purple-300/40 border-t border-purple-950/20 bg-black/40">
+        <p>※ 효과음은 Web Audio API 기술로 실시간 컴퓨터가 정밀 신디사이징 합성합니다.</p>
+    </footer>
+
+    <!-- 자바스크립트 엔진 구현 -->
+    <script>
+        // --- 1. 독립적인 룰렛 데이터 구조 (좌: r1, 우: r2) ---
+        const r1 = {
+            id: 1,
+            name: "좌측 룰렛",
+            colorClass: "purple",
+            items: ["1번", "2번", "3번", "4번", "5번", "6번", "7번", "8번"],
+            itemGroups: {
+                "1번": "master", "2번": "runner", "3번": "master", "4번": "runner",
+                "5번": "general", "6번": "general", "7번": "general", "8번": "general"
+            },
+            alternateMode: false,
+            lastSelectedGroup: null,
+            state: 'idle',
+            currentAngle: 0,
+            angularVelocity: 0,
+            lastTickSegment: -1,
+            forcedWinnerIndex: -1,
+            stopStartAngle: 0,
+            stopEndAngle: 0,
+            currentStopFrame: 0,
+            lastWinnerIndex: -1,
+            canvasId: 'rouletteCanvas1',
+            btnId: 'btnAction1',
+            textId: 'actionText1',
+            iconId: 'actionIcon1'
+        };
+
+        const r2 = {
+            id: 2,
+            name: "우측 룰렛",
+            colorClass: "pink",
+            items: ["1번", "2번", "3번", "4번", "5번", "6번", "7번", "8번", "9번", "10번", "11번", "12번", "13번", "14번", "15번", "16번", "17번", "18번", "19번", "20번"],
+            itemGroups: {
+                "1번": "master", "2번": "runner", "3번": "master", "4번": "runner",
+                "5번": "general", "6번": "general", "7번": "general", "8번": "general",
+                "9번": "general", "10번": "general", "11번": "general", "12번": "general",
+                "13번": "general", "14번": "general", "15번": "general", "16번": "general",
+                "17번": "general", "18번": "general", "19번": "general", "20번": "general"
+            },
+            alternateMode: false,
+            lastSelectedGroup: null,
+            state: 'idle',
+            currentAngle: 0,
+            angularVelocity: 0,
+            lastTickSegment: -1,
+            forcedWinnerIndex: -1,
+            stopStartAngle: 0,
+            stopEndAngle: 0,
+            currentStopFrame: 0,
+            lastWinnerIndex: -1,
+            canvasId: 'rouletteCanvas2',
+            btnId: 'btnAction2',
+            textId: 'actionText2',
+            iconId: 'actionIcon2'
+        };
+
+        // 현재 설정 모달에서 선택된 관리용 룰렛 타겟 관리자 (기본 r1)
+        let activeAdminRoulette = r1;
+
+        // 프레임 제어 상숫값
+        const stopFrameCount = 150; // 정지 브레이크 소요 프레임 수 (약 2.5초)
+
+        // UI 요소 캐싱
+        const btnAdminGate = document.getElementById('btnAdminGate');
+        const passwordModal = document.getElementById('passwordModal');
+        const adminPasswordInput = document.getElementById('adminPasswordInput');
+        const btnCancelPass = document.getElementById('btnCancelPass');
+        const btnVerifyPass = document.getElementById('btnVerifyPass');
+        const adminSettingsModal = document.getElementById('adminSettingsModal');
+        const btnCloseAdmin = document.getElementById('btnCloseAdmin');
+        const btnSaveAdmin = document.getElementById('btnSaveAdmin');
+        
+        const tabBtn1 = document.getElementById('tabBtn1');
+        const tabBtn2 = document.getElementById('tabBtn2');
+        const alternateToggle = document.getElementById('alternateToggle');
+        const nextGroupIndicator = document.getElementById('nextGroupIndicator');
+        const addTitleLabel = document.getElementById('addTitleLabel');
+        const itemForm = document.getElementById('itemForm');
+        const itemInput = document.getElementById('itemInput');
+        const adminTotalCount = document.getElementById('adminTotalCount');
+        const itemListContainer = document.getElementById('itemListContainer');
+
+        const confettiCanvas = document.getElementById('confettiCanvas');
+        const confettiCtx = confettiCanvas.getContext('2d');
+
+        // 다채로운 프리미엄 네온 계열 색상 테이블
+        const colorPalette = [
+            '#a855f7', '#ec4899', '#6366f1', '#3b82f6', 
+            '#06b6d4', '#14b8a6', '#10b981', '#f59e0b', 
+            '#ef4444', '#f43f5e'
+        ];
+
+        // --- 2. 오디오 신디사이저 (Web Audio API) ---
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        // 바늘 통과음 (짧고 명료한 째깍음 합성)
+        function playTickSound() {
+            try {
+                initAudio();
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                osc.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(1200, now);
+                osc.frequency.exponentialRampToValueAtTime(150, now + 0.035);
+
+                gainNode.gain.setValueAtTime(0.06, now);
+                gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
+
+                osc.start(now);
+                osc.stop(now + 0.04);
+            } catch (err) {
+                console.warn(err);
+            }
+        }
+
+        // 완벽 축하 팡파레 (풍성한 레트로 화음 신디사이저)
+        function playWinSound() {
+            try {
+                initAudio();
+                const now = audioCtx.currentTime;
+                const chord = [523.25, 659.25, 783.99, 1046.50];
+
+                chord.forEach((freq, index) => {
+                    const osc = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+
+                    osc.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + index * 0.08);
+                    
+                    gainNode.gain.setValueAtTime(0, now);
+                    gainNode.gain.linearRampToValueAtTime(0.12, now + index * 0.08 + 0.02);
+                    gainNode.gain.exponentialRampToValueAtTime(0.001, now + index * 0.08 + 0.6);
+
+                    osc.start(now + index * 0.08);
+                    osc.stop(now + index * 0.08 + 0.65);
+                });
+            } catch (err) {
+                console.warn(err);
+            }
+        }
+
+
+        // --- 3. 룰렛 캔버스 렌더링 로직 (객체 수신 구도화) ---
+        function drawRoulette(r) {
+            const canvas = document.getElementById(r.canvasId);
+            const ctx = canvas.getContext('2d');
+            const size = canvas.width;
+            const center = size / 2;
+            const radius = center - 20;
+
+            ctx.clearRect(0, 0, size, size);
+
+            if (r.items.length === 0) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(center, center, radius, 0, Math.PI * 2);
+                ctx.fillStyle = '#110f24';
+                ctx.fill();
+                ctx.lineWidth = 6;
+                ctx.strokeStyle = '#3b82f6';
+                ctx.stroke();
+
+                ctx.fillStyle = '#64748b';
+                ctx.font = 'bold 36px Pretendard';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('항목 추가 대기 중', center, center);
+                ctx.restore();
+                return;
+            }
+
+            const arcSize = (Math.PI * 2) / r.items.length;
+
+            ctx.save();
+            ctx.translate(center, center);
+            ctx.rotate(r.currentAngle);
+
+            for (let i = 0; i < r.items.length; i++) {
+                const startAngle = i * arcSize;
+                const endAngle = startAngle + arcSize;
+                
+                // 부채꼴 채우기
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.arc(0, 0, radius, startAngle, endAngle);
+                ctx.closePath();
+
+                // 색상 할당
+                ctx.fillStyle = colorPalette[i % colorPalette.length];
+                ctx.fill();
+
+                // 경계선
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#070510';
+                ctx.stroke();
+
+                // 입체감을 살릴 부채꼴 그라데이션 광택 레이어
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.arc(0, 0, radius, startAngle, endAngle);
+                ctx.closePath();
+                const grad = ctx.createRadialGradient(0, 0, 10, 0, 0, radius);
+                grad.addColorStop(0, 'rgba(255, 255, 255, 0.15)');
+                grad.addColorStop(0.5, 'rgba(0, 0, 0, 0)');
+                grad.addColorStop(1, 'rgba(0, 0, 0, 0.45)');
+                ctx.fillStyle = grad;
+                ctx.fill();
+
+                // 텍스트 그리기
+                ctx.save();
+                ctx.rotate(startAngle + arcSize / 2);
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                
+                let fontSize = 28;
+                if (r.items.length > 12) fontSize = 20;
+                if (r.items.length > 20) fontSize = 14;
+
+                ctx.font = `900 ${fontSize}px Pretendard`;
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+                ctx.shadowBlur = 6;
+
+                const textVal = r.items[i];
+
+                // 집단 구분 표시 추가 ([M] 마스터, [R] 러너)
+                let groupLabel = "";
+                const grp = r.itemGroups[textVal] || 'general';
+                if (grp === 'master') groupLabel = " [M]";
+                else if (grp === 'runner') groupLabel = " [R]";
+
+                let displayText = textVal + groupLabel;
+                const textMargin = radius - 35;
+                if (ctx.measureText(displayText).width > textMargin - 20) {
+                    displayText = textVal.substring(0, 5) + ".." + groupLabel;
+                }
+
+                ctx.fillText(displayText, textMargin, 0);
+                ctx.restore();
+            }
+
+            // 테두리 림 라인
+            ctx.beginPath();
+            ctx.arc(0, 0, radius, 0, Math.PI * 2);
+            ctx.lineWidth = 10;
+            ctx.strokeStyle = '#070510';
+            ctx.stroke();
+
+            // 네온 피벗 원 장식
+            ctx.beginPath();
+            ctx.arc(0, 0, 35, 0, Math.PI * 2);
+            ctx.fillStyle = '#070510';
+            ctx.fill();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = r.colorClass === 'purple' ? '#a855f7' : '#ec4899';
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(0, 0, 15, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+
+        // --- 4. 회전 물리학 & 게임 루프 모듈 ---
+        function updatePhysics() {
+            let activeSpins = 0;
+
+            // 좌측, 우측 둘 중 하나라도 작동하면 프레임 구동
+            [r1, r2].forEach((r) => {
+                if (r.state === 'idle') return;
+
+                activeSpins++;
+
+                if (r.state === 'spinning') {
+                    // 회전각 누적 및 가속
+                    r.currentAngle += r.angularVelocity;
+                    r.currentAngle = r.currentAngle % (Math.PI * 2);
+
+                    if (r.angularVelocity < 0.45) {
+                        r.angularVelocity += 0.02;
+                    }
+                } else if (r.state === 'stopping') {
+                    // 프레임 기반의 정교하고 부드러운 감속 완화 (Cubic Ease-Out)
+                    r.currentStopFrame++;
+                    const t = Math.min(r.currentStopFrame / stopFrameCount, 1);
+                    
+                    // 완화 공식: easeOutCubic
+                    const ease = 1 - Math.pow(1 - t, 3);
+                    r.currentAngle = r.stopStartAngle + (r.stopEndAngle - r.stopStartAngle) * ease;
+                    r.currentAngle = r.currentAngle % (Math.PI * 2);
+
+                    // 정지 도달 시점
+                    if (t >= 1) {
+                        r.angularVelocity = 0;
+                        r.state = 'idle';
+                        announceWinner(r);
+                    }
+                }
+
+                // 째깍 틱 소리 구현 메커니즘
+                if (r.items.length > 0) {
+                    const pointedIdx = getPointedIndex(r);
+                    if (pointedIdx !== r.lastTickSegment) {
+                        playTickSound();
+                        r.lastTickSegment = pointedIdx;
+                    }
+                }
+
+                drawRoulette(r);
+            });
+
+            if (activeSpins > 0) {
+                requestAnimationFrame(updatePhysics);
+            }
+        }
+
+        // 바늘(최상단 12시) 조준 기준 정비례 룰렛 인덱스 반환
+        function getPointedIndex(r) {
+            if (r.items.length === 0) return -1;
+            const arcSize = (Math.PI * 2) / r.items.length;
+            let targetAngle = (1.5 * Math.PI - r.currentAngle) % (Math.PI * 2);
+            if (targetAngle < 0) {
+                targetAngle += Math.PI * 2;
+            }
+            return Math.floor(targetAngle / arcSize) % r.items.length;
+        }
+
+        // 당첨 선언 시 해당하는 로컬 룰렛 카드 오버레이에만 띄우기
+        function announceWinner(r) {
+            const winnerIdx = getPointedIndex(r);
+            if (winnerIdx === -1) return;
+
+            r.lastWinnerIndex = winnerIdx;
+            const winnerText = r.items[winnerIdx];
+            
+            // 다음 교대를 위해 당첨된 집단 기록 갱신
+            const currentWinnerGroup = r.itemGroups[winnerText] || 'general';
+            if (currentWinnerGroup === 'master' || currentWinnerGroup === 'runner') {
+                r.lastSelectedGroup = currentWinnerGroup;
+            }
+            updateAdminHelperUI();
+
+            // 당당한 로컬 전용 오버레이 바인딩 및 노출
+            const overlay = document.getElementById('resultOverlay' + r.id);
+            const display = document.getElementById('winnerDisplay' + r.id);
+            display.innerText = winnerText;
+            overlay.classList.remove('hidden');
+            
+            // 축하음 & 실시간 합성
+            playWinSound();
+
+            // 해당 룰렛 캔버스의 실시간 클라이언트 좌표 중심을 계산해 그 위치에서만 이펙트 방출!
+            const canvasEl = document.getElementById(r.canvasId);
+            const rect = canvasEl.getBoundingClientRect();
+            const spawnX = rect.left + rect.width / 2;
+            const spawnY = rect.top + rect.height / 2;
+            triggerConfetti(spawnX, spawnY);
+
+            setButtonState(r, 'start');
+        }
+
+
+        // --- 5. 폭죽(Confetti) 입자 효과 엔진 ---
+        let confettiArray = [];
+        let confettiFrameId = null;
+
+        class Confetti {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 8 + 5;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed - 3;
+                this.radius = Math.random() * 5 + 3;
+                this.color = colorPalette[Math.floor(Math.random() * colorPalette.length)];
+                this.alpha = 1;
+                this.decay = Math.random() * 0.02 + 0.01;
+                this.gravity = 0.15;
+            }
+
+            draw() {
+                confettiCtx.save();
+                confettiCtx.globalAlpha = this.alpha;
+                confettiCtx.beginPath();
+                confettiCtx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                confettiCtx.fillStyle = this.color;
+                confettiCtx.fill();
+                confettiCtx.restore();
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vy += this.gravity;
+                this.alpha -= this.decay;
+            }
+        }
+
+        function resizeConfetti() {
+            confettiCanvas.width = window.innerWidth;
+            confettiCanvas.height = window.innerHeight;
+        }
+
+        // 폭죽 트리거 위치 수용 가능하도록 개편
+        function triggerConfetti(spawnX, spawnY) {
+            resizeConfetti();
+            confettiCanvas.classList.remove('hidden');
+            confettiArray = [];
+
+            const x = spawnX !== undefined ? spawnX : window.innerWidth / 2;
+            const y = spawnY !== undefined ? spawnY : window.innerHeight / 2;
+
+            for (let i = 0; i < 120; i++) {
+                confettiArray.push(new Confetti(x, y));
+            }
+
+            cancelAnimationFrame(confettiFrameId);
+            runConfettiLoop();
+        }
+
+        function runConfettiLoop() {
+            confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+
+            for (let i = confettiArray.length - 1; i >= 0; i--) {
+                const c = confettiArray[i];
+                c.update();
+                c.draw();
+                if (c.alpha <= 0) {
+                    confettiArray.splice(i, 1);
+                }
+            }
+
+            if (confettiArray.length > 0) {
+                confettiFrameId = requestAnimationFrame(runConfettiLoop);
+            } else {
+                confettiCanvas.classList.add('hidden');
+            }
+        }
+
+
+        // --- 6. 버튼 라벨 및 레이아웃 상태 변경 유틸 ---
+        function setButtonState(r, targetState) {
+            const btn = document.getElementById(r.btnId);
+            const text = document.getElementById(r.textId);
+            const icon = document.getElementById(r.iconId);
+
+            if (targetState === 'start') {
+                text.innerText = '돌리기';
+                icon.setAttribute('data-lucide', 'play');
+                if (r.colorClass === 'purple') {
+                    btn.className = "w-full py-3.5 bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-600 hover:to-indigo-600 text-white font-extrabold text-lg rounded-2xl shadow-lg transform active:scale-95 transition-all flex items-center justify-center gap-2 tracking-widest neon-border-purple";
+                } else {
+                    btn.className = "w-full py-3.5 bg-gradient-to-r from-pink-700 to-rose-700 hover:from-pink-600 hover:to-rose-600 text-white font-extrabold text-lg rounded-2xl shadow-lg transform active:scale-95 transition-all flex items-center justify-center gap-2 tracking-widest neon-border-pink";
+                }
+            } else if (targetState === 'stop') {
+                text.innerText = '멈추기';
+                icon.setAttribute('data-lucide', 'square');
+                btn.className = "w-full py-3.5 bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white font-extrabold text-lg rounded-2xl shadow-lg transform active:scale-95 transition-all flex items-center justify-center gap-2 tracking-widest neon-border-purple";
+            }
+            lucide.createIcons();
+        }
+
+
+        // --- 7. [통합 구성] 유저 인터페이스 렌더링 & 이벤트 연동 ---
+
+        // 비밀 설정 모달 안의 '선택된 룰렛 통합 관리 목록' 렌더링 함수
+        function renderAdminList() {
+            itemListContainer.innerHTML = '';
+            adminTotalCount.innerText = activeAdminRoulette.items.length;
+            
+            if (activeAdminRoulette.items.length === 0) {
+                itemListContainer.innerHTML = `
+                    <div class="p-6 text-center text-slate-500 text-xs">
+                        설정할 학생 목록이 없습니다. 바로 위 추가 창에서 학생을 등록하세요.
+                    </div>
+                `;
+                drawRoulette(activeAdminRoulette);
+                return;
+            }
+
+            activeAdminRoulette.items.forEach((item, index) => {
+                const currentGroup = activeAdminRoulette.itemGroups[item] || 'general';
+                const row = document.createElement('div');
+                row.className = "grid grid-cols-12 gap-2 p-3 items-center text-sm border-b border-slate-800";
+                
+                // 분류 지정용 3단 토글 버튼 마크업 및 휴지통 삭제 기능 통합
+                row.innerHTML = `
+                    <div class="col-span-5 font-semibold text-slate-300 truncate">${escapeHTML(item)}</div>
+                    <div class="col-span-5 flex justify-center gap-1">
+                        <button onclick="setItemGroup('${item}', 'general')" class="px-2 py-1 text-[10px] sm:text-xs font-semibold rounded-md transition-all ${currentGroup === 'general' ? 'bg-slate-800 text-white border border-slate-700' : 'bg-transparent text-slate-500 hover:text-slate-300'}">일반</button>
+                        <button onclick="setItemGroup('${item}', 'master')" class="px-2 py-1 text-[10px] sm:text-xs font-semibold rounded-md transition-all ${currentGroup === 'master' ? 'bg-blue-600 text-white border border-blue-500' : 'bg-transparent text-slate-500 hover:text-slate-300'}">마스터</button>
+                        <button onclick="setItemGroup('${item}', 'runner')" class="px-2 py-1 text-[10px] sm:text-xs font-semibold rounded-md transition-all ${currentGroup === 'runner' ? 'bg-emerald-600 text-white border border-emerald-500' : 'bg-transparent text-slate-500 hover:text-slate-300'}">러너</button>
+                    </div>
+                    <div class="col-span-2 flex justify-end">
+                        <button onclick="deleteSingleItem(${index})" class="text-slate-500 hover:text-red-400 p-1.5 rounded-md hover:bg-red-500/10 transition-all" title="항목 삭제">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                `;
+                itemListContainer.appendChild(row);
+            });
+
+            lucide.createIcons();
+            drawRoulette(activeAdminRoulette);
+        }
+
+        // HTML 이스케이프 방어
+        function escapeHTML(str) {
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        }
+
+        // 아이템 폼 서브밋 핸들러 (설정 창 내부 추가 폼)
+        itemForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const value = itemInput.value.trim();
+            if (value) {
+                // 중복 추가 체크
+                if (activeAdminRoulette.items.includes(value)) {
+                    itemInput.classList.add('border-red-500');
+                    setTimeout(() => itemInput.classList.remove('border-red-500'), 500);
+                    return;
+                }
+                activeAdminRoulette.items.push(value);
+                if (!activeAdminRoulette.itemGroups[value]) {
+                    activeAdminRoulette.itemGroups[value] = 'general';
+                }
+                itemInput.value = '';
+                renderAdminList();
+            }
+        });
+
+        // 입력 편의 탭 전환 및 일괄 추가 함수군
+        function switchAddMethod(method) {
+            const btnSingle = document.getElementById('addMethodBtnSingle');
+            const btnBulk = document.getElementById('addMethodBtnBulk');
+            const containerSingle = document.getElementById('addSingleContainer');
+            const containerBulk = document.getElementById('addBulkContainer');
+
+            if (method === 'single') {
+                btnSingle.className = "text-sm font-bold text-purple-400 border-b-2 border-purple-500 pb-1 focus:outline-none transition-all";
+                btnBulk.className = "text-sm font-bold text-slate-400 hover:text-slate-200 pb-1 focus:outline-none transition-all";
+                containerSingle.classList.remove('hidden');
+                containerBulk.classList.add('hidden');
+            } else {
+                btnSingle.className = "text-sm font-bold text-slate-400 hover:text-slate-200 pb-1 focus:outline-none transition-all";
+                btnBulk.className = "text-sm font-bold text-pink-400 border-b-2 border-pink-500 pb-1 focus:outline-none transition-all";
+                containerSingle.classList.add('hidden');
+                containerBulk.classList.remove('hidden');
+            }
+            lucide.createIcons();
+        }
+
+        // 방법 1: 연속 번호 생성 로직
+        window.generateBulkNumbers = function() {
+            const startNum = parseInt(document.getElementById('bulkStartNum').value) || 1;
+            const endNum = parseInt(document.getElementById('bulkEndNum').value) || 10;
+            const suffix = document.getElementById('bulkSuffix').value;
+
+            if (startNum > endNum) {
+                alert("시작 번호가 끝 번호보다 클 수 없습니다.");
+                return;
+            }
+            if (endNum - startNum > 100) {
+                alert("한 번에 최대 100개까지만 추가 가능합니다.");
+                return;
+            }
+
+            let addedCount = 0;
+            for (let i = startNum; i <= endNum; i++) {
+                const itemString = `${i}${suffix}`;
+                if (!activeAdminRoulette.items.includes(itemString)) {
+                    activeAdminRoulette.items.push(itemString);
+                    if (!activeAdminRoulette.itemGroups[itemString]) {
+                        activeAdminRoulette.itemGroups[itemString] = 'general';
+                    }
+                    addedCount++;
+                }
+            }
+            renderAdminList();
+            console.log(`[일괄 추가] ${addedCount}개의 연속 번호 추가 완료`);
+        }
+
+        // 방법 2: 텍스트 분할 대량 추가 로직
+        window.generateBulkText = function() {
+            const rawText = document.getElementById('bulkTextArea').value;
+            if (!rawText.trim()) return;
+
+            const lines = rawText.split(/[,\n]+/);
+            let addedCount = 0;
+
+            lines.forEach(line => {
+                const trimmed = line.trim();
+                if (trimmed && !activeAdminRoulette.items.includes(trimmed)) {
+                    if (trimmed.length > 20) {
+                        return;
+                    }
+                    activeAdminRoulette.items.push(trimmed);
+                    if (!activeAdminRoulette.itemGroups[trimmed]) {
+                        activeAdminRoulette.itemGroups[trimmed] = 'general';
+                    }
+                    addedCount++;
+                }
+            });
+
+            document.getElementById('bulkTextArea').value = '';
+            renderAdminList();
+            console.log(`[일괄 추가] ${addedCount}개의 사용자 텍스트 항목 추가 완료`);
+        }
+
+        // 단일 아이템 완전 삭제 (기어 팝업 내부)
+        window.deleteSingleItem = function(index) {
+            const removedItem = activeAdminRoulette.items[index];
+            activeAdminRoulette.items.splice(index, 1);
+            delete activeAdminRoulette.itemGroups[removedItem];
+            renderAdminList();
+        }
+
+        // 현재 선택된 룰렛 전체 비우기
+        window.clearCurrentAllItems = function() {
+            activeAdminRoulette.items = [];
+            activeAdminRoulette.itemGroups = {};
+            renderAdminList();
+        }
+
+        // 현재 선택된 룰렛 기본값 세팅 복원
+        window.resetCurrentToDefault = function() {
+            if (activeAdminRoulette.id === 1) {
+                activeAdminRoulette.items = ["1번", "2번", "3번", "4번", "5번", "6번", "7번", "8번"];
+                activeAdminRoulette.itemGroups = {
+                    "1번": "master", "2번": "runner", "3번": "master", "4번": "runner",
+                    "5번": "general", "6번": "general", "7번": "general", "8번": "general"
+                };
+            } else {
+                activeAdminRoulette.items = ["1번", "2번", "3번", "4번", "5번", "6번", "7번", "8번", "9번", "10번", "11번", "12번", "13번", "14번", "15번", "16번", "17번", "18번", "19번", "20번"];
+                activeAdminRoulette.itemGroups = {
+                    "1번": "master", "2번": "runner", "3번": "master", "4번": "runner",
+                    "5번": "general", "6번": "general", "7번": "general", "8번": "general",
+                    "9번": "general", "10번": "general", "11번": "general", "12번": "general",
+                    "13번": "general", "14번": "general", "15번": "general", "16번": "general",
+                    "17번": "general", "18번": "general", "19번": "general", "20번": "general"
+                };
+            }
+            renderAdminList();
+        }
+
+        // 아이템 집단 실시간 교체
+        window.setItemGroup = function(item, groupName) {
+            activeAdminRoulette.itemGroups[item] = groupName;
+            renderAdminList();
+        }
+
+
+        // --- 8. 교대 선정 및 강제 선정 조작 로직 ---
+        
+        // 룰렛 회전 핸들링 범용 함수
+        function handleRouletteAction(r) {
+            if (r.items.length === 0) return;
+
+            // 이미 해당 룰렛 결과 오버레이가 보이고 있다면 가려줌
+            document.getElementById('resultOverlay' + r.id).classList.add('hidden');
+
+            initAudio();
+
+            if (r.state === 'idle') {
+                r.state = 'spinning';
+                setButtonState(r, 'stop');
+                updatePhysics();
+            } else if (r.state === 'spinning') {
+                r.forcedWinnerIndex = calculateManipulatedWinner(r);
+                setupControlledStopping(r, r.forcedWinnerIndex);
+            }
+        }
+
+        // 개별 동작용 버튼 연결
+        document.getElementById('btnAction1').addEventListener('click', () => handleRouletteAction(r1));
+        document.getElementById('btnAction2').addEventListener('click', () => handleRouletteAction(r2));
+
+        // 조작 알고리즘에 기반해 미리 당첨될 인덱스를 뽑는 핵심 함수
+        function calculateManipulatedWinner(r) {
+            if (r.items.length === 0) return 0;
+
+            if (r.alternateMode) {
+                let targetGroup = 'master'; // 기본 시작은 마스터
+                if (r.lastSelectedGroup === 'master') {
+                    targetGroup = 'runner';
+                } else if (r.lastSelectedGroup === 'runner') {
+                    targetGroup = 'master';
+                }
+
+                let candidates = [];
+                r.items.forEach((item, index) => {
+                    if (r.itemGroups[item] === targetGroup) {
+                        candidates.push(index);
+                    }
+                });
+
+                if (candidates.length === 0) {
+                    const fallbackGroup = (targetGroup === 'master') ? 'runner' : 'master';
+                    r.items.forEach((item, index) => {
+                        if (r.itemGroups[item] === fallbackGroup) {
+                            candidates.push(index);
+                        }
+                    });
+                }
+
+                if (candidates.length === 0) {
+                    return Math.floor(Math.random() * r.items.length);
+                }
+
+                const chosenIndex = candidates[Math.floor(Math.random() * candidates.length)];
+                console.log(`[조작 엔진] ${r.name} 교대 모드 -> 당첨 예정: ${r.items[chosenIndex]}`);
+                return chosenIndex;
+            }
+
+            return Math.floor(Math.random() * r.items.length);
+        }
+
+        // 제어된 완만 감속을 위해 시작각과 목표 정지 각도 수립
+        function setupControlledStopping(r, targetIndex) {
+            r.state = 'stopping';
+            r.currentStopFrame = 0;
+            r.stopStartAngle = r.currentAngle;
+
+            const arcSize = (Math.PI * 2) / r.items.length;
+            
+            let targetOffsetAngle = (1.5 * Math.PI - (targetIndex + 0.5) * arcSize) % (Math.PI * 2);
+            if (targetOffsetAngle < 0) {
+                targetOffsetAngle += Math.PI * 2;
+            }
+
+            const minExtraSpin = Math.PI * 5; 
+            
+            let targetDistance = targetOffsetAngle - (r.currentAngle % (Math.PI * 2));
+            if (targetDistance < 0) {
+                targetDistance += Math.PI * 2;
+            }
+
+            r.stopEndAngle = r.currentAngle + minExtraSpin + targetDistance;
+        }
+
+
+        // --- 9. 관리자 보안 모달 & 세부 설정 로직 ---
+
+        // 비밀 설정 버튼 클릭 시: 패스워드 모달 노출
+        btnAdminGate.addEventListener('click', () => {
+            adminPasswordInput.value = '';
+            passwordModal.classList.remove('hidden');
+            adminPasswordInput.focus();
+        });
+
+        // 패스워드 모달 닫기
+        btnCancelPass.addEventListener('click', () => {
+            passwordModal.classList.add('hidden');
+        });
+
+        // 엔터키 패스워드 승인 처리
+        adminPasswordInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                verifyAdminPassword();
+            }
+        });
+
+        btnVerifyPass.addEventListener('click', verifyAdminPassword);
+
+        function verifyAdminPassword() {
+            if (adminPasswordInput.value === '2026') {
+                passwordModal.classList.add('hidden');
+                openAdminSettings();
+            } else {
+                adminPasswordInput.classList.add('border-red-500');
+                setTimeout(() => {
+                    adminPasswordInput.classList.remove('border-red-500');
+                }, 500);
+            }
+        }
+
+        // 비밀 어드민 설정 오픈
+        function openAdminSettings() {
+            switchAdminTab(r1); // 항상 좌측 룰렛을 먼저 보여줌
+            switchAddMethod('single'); // 추가 모드는 단일 추가로 초기화
+            adminSettingsModal.classList.remove('hidden');
+        }
+
+        // 탭 스위칭 헬퍼
+        function switchAdminTab(targetRoulette) {
+            activeAdminRoulette = targetRoulette;
+
+            if (targetRoulette.id === 1) {
+                // 좌측 탭 강조
+                tabBtn1.className = "flex-1 py-3 text-center text-sm font-extrabold border-b-2 border-purple-500 text-purple-400 focus:outline-none transition-all";
+                tabBtn2.className = "flex-1 py-3 text-center text-sm font-extrabold border-b-2 border-transparent text-slate-400 hover:text-slate-200 focus:outline-none transition-all";
+                addTitleLabel.innerHTML = `<i data-lucide="plus-circle" class="w-4 h-4 text-purple-400"></i> 좌측 룰렛 새 항목 추가`;
+            } else {
+                // 우측 탭 강조
+                tabBtn1.className = "flex-1 py-3 text-center text-sm font-extrabold border-b-2 border-transparent text-slate-400 hover:text-slate-200 focus:outline-none transition-all";
+                tabBtn2.className = "flex-1 py-3 text-center text-sm font-extrabold border-b-2 border-pink-500 text-pink-400 focus:outline-none transition-all";
+                addTitleLabel.innerHTML = `<i data-lucide="plus-circle" class="w-4 h-4 text-pink-400"></i> 우측 룰렛 새 항목 추가`;
+            }
+
+            alternateToggle.checked = targetRoulette.alternateMode;
+            updateAdminHelperUI();
+            renderAdminList();
+            lucide.createIcons();
+        }
+
+        tabBtn1.addEventListener('click', () => switchAdminTab(r1));
+        tabBtn2.addEventListener('click', () => switchAdminTab(r2));
+
+        // 집단 분류 가이드 텍스트 업데이트
+        function updateAdminHelperUI() {
+            if (alternateToggle.checked) {
+                let nextGroupText = '마스터 집단';
+                if (activeAdminRoulette.lastSelectedGroup === 'master') {
+                    nextGroupText = '러너 집단';
+                }
+                nextGroupIndicator.innerText = `🔥 교대 모드 ON (다음 당첨 목표: ${nextGroupText})`;
+            } else {
+                nextGroupIndicator.innerText = `💡 일반 모드: 모든 항목이 균등한 확률로 당첨됩니다.`;
+            }
+        }
+
+        // 교대 선정 토글 체인지
+        alternateToggle.addEventListener('change', (e) => {
+            activeAdminRoulette.alternateMode = e.target.checked;
+            updateAdminHelperUI();
+        });
+
+        // 설정 패널 최종 적용하고 닫기
+        btnSaveAdmin.addEventListener('click', () => {
+            adminSettingsModal.classList.add('hidden');
+            drawRoulette(r1);
+            drawRoulette(r2);
+        });
+
+        btnCloseAdmin.addEventListener('click', () => {
+            adminSettingsModal.classList.add('hidden');
+            drawRoulette(r1);
+            drawRoulette(r2);
+        });
+
+
+        // --- 10. 이원화된 결과창 전용 핸들러 함수군 ---
+
+        // 로컬 전용 당첨 항목 삭제 액션
+        window.deleteWinner = function(id) {
+            const r = (id === 1) ? r1 : r2;
+            if (r.lastWinnerIndex !== -1 && r.lastWinnerIndex < r.items.length) {
+                const winnerItem = r.items[r.lastWinnerIndex];
+                r.items.splice(r.lastWinnerIndex, 1);
+                delete r.itemGroups[winnerItem];
+                r.lastWinnerIndex = -1;
+                drawRoulette(r);
+
+                // 어드민 세팅창이 열려있고 타겟이 해당 룰렛인 경우 실시간 목록도 동기화
+                if (!adminSettingsModal.classList.contains('hidden') && activeAdminRoulette.id === r.id) {
+                    renderAdminList();
+                }
+            }
+            document.getElementById('resultOverlay' + id).classList.add('hidden');
+        };
+
+        // 로컬 결과창 닫기 (그대로 두기)
+        window.closeWinner = function(id) {
+            document.getElementById('resultOverlay' + id).classList.add('hidden');
+        };
+
+
+        // --- 11. 시작점 진입 및 초기화 그리기 ---
+        window.onload = () => {
+            lucide.createIcons();
+            drawRoulette(r1);
+            drawRoulette(r2);
+        };
+    </script>
+</body>
+</html>
