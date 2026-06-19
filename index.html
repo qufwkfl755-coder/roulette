@@ -46,7 +46,7 @@
                 <i data-lucide="settings" class="w-4 h-4 animate-spin" style="animation-duration: 8s;"></i>
                 비밀 설정
             </button>
-            <!-- [신규] 클라우드 동기화 상태 인디케이터 -->
+            <!-- 클라우드 동기화 상태 인디케이터 -->
             <div id="cloudStatus" class="text-xs text-slate-400 bg-slate-950/60 border border-slate-800/80 px-3 py-1.5 rounded-full flex items-center gap-1.5 font-medium">
                 <span class="w-1.5 h-1.5 rounded-full bg-slate-500 animate-pulse"></span>
                 클라우드 연결 확인 중
@@ -350,7 +350,7 @@
 
     <!-- 자바스크립트 엔진 구현 -->
     <script type="module">
-        // --- 0. [신규] Firebase SDK 모듈 임포트 및 자동 저장 엔진 구축 ---
+        // --- 0. Firebase SDK 모듈 임포트 및 자동 저장 엔진 구축 ---
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -360,14 +360,17 @@
         let appId = 'default-app-id';
 
         // 룰렛 데이터 구조 (기본 그룹은 모두 'general'로 초기화)
+        // 숫자를 제외한 순수 단어 "교사", "학생"만 20개 교차 배치
         const r1 = {
             id: 1,
             name: "좌측 룰렛",
             colorClass: "purple",
-            items: ["1번", "2번", "3번", "4번", "5번", "6번", "7번", "8번"],
+            items: [
+                "교사", "학생", "교사", "학생", "교사", "학생", "교사", "학생", "교사", "학생",
+                "교사", "학생", "교사", "학생", "교사", "학생", "교사", "학생", "교사", "학생"
+            ],
             itemGroups: {
-                "1번": "general", "2번": "general", "3번": "general", "4번": "general",
-                "5번": "general", "6번": "general", "7번": "general", "8번": "general"
+                "교사": "general", "학생": "general"
             },
             alternateMode: false,
             lastSelectedGroup: null,
@@ -464,6 +467,7 @@
         }
 
         // 바늘 통과음 (짧고 명료한 째깍음 합성)
+        // [수정] 스피닝 중 효과음을 크게 들리도록 오디오 가인 대폭 증가
         function playTickSound() {
             try {
                 initAudio();
@@ -478,7 +482,8 @@
                 osc.frequency.setValueAtTime(1200, now);
                 osc.frequency.exponentialRampToValueAtTime(150, now + 0.035);
 
-                gainNode.gain.setValueAtTime(0.06, now);
+                // 효과음 크기를 0.06에서 0.38로 대폭 늘려 가청 볼륨 향상
+                gainNode.gain.setValueAtTime(0.38, now);
                 gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
 
                 osc.start(now);
@@ -743,7 +748,7 @@
         }
 
 
-        // --- 5. 폭죽(Confetti) 입자 효과 엔진 ---
+        // --- 5. 폭죽(Confetti) 입자 효과용 엔진 ---
         let confettiArray = [];
         let confettiFrameId = null;
 
@@ -821,7 +826,7 @@
         }
 
 
-        // --- 6. 버튼 라벨 및 레이아웃 상태 변경 유틸 ---
+        // --- 6. BUTTON STATES ---
         function setButtonState(r, targetState) {
             const btn = document.getElementById(r.btnId);
             const text = document.getElementById(r.textId);
@@ -844,10 +849,8 @@
         }
 
 
-        // --- 7. [통합 구성] 유저 인터페이스 렌더링 & 이벤트 연동 ---
-
-        // 비밀 설정 모달 안의 '선택된 룰렛 통합 관리 목록' 렌더링 함수
-        function renderAdminList() {
+        // --- 7. UI RENDERING ---
+        function renderItemList() {
             itemListContainer.innerHTML = '';
             adminTotalCount.innerText = activeAdminRoulette.items.length;
             
@@ -886,14 +889,12 @@
             drawRoulette(activeAdminRoulette);
         }
 
-        // HTML 이스케이프 방어
         function escapeHTML(str) {
             return str.replace(/[&<>'"]/g, 
                 tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
             );
         }
 
-        // 아이템 폼 서브밋 핸들러 (설정 창 내부 추가 폼)
         itemForm.addEventListener('submit', (e) => {
             e.preventDefault();
             
@@ -914,7 +915,6 @@
             }
         });
 
-        // 입력 편의 탭 전환 및 일괄 추가 함수군
         window.switchAddMethod = function(method) {
             const btnSingle = document.getElementById('addMethodBtnSingle');
             const btnBulk = document.getElementById('addMethodBtnBulk');
@@ -935,7 +935,6 @@
             lucide.createIcons();
         }
 
-        // 방법 1: 연속 번호 생성 로직 (보안 업데이트: 추가 시 그룹 상태 '일반' 강제 지정)
         window.generateBulkNumbers = function() {
             const startNum = parseInt(document.getElementById('bulkStartNum').value) || 1;
             const endNum = parseInt(document.getElementById('bulkEndNum').value) || 10;
@@ -955,17 +954,15 @@
                 const itemString = `${i}${suffix}`;
                 if (!activeAdminRoulette.items.includes(itemString)) {
                     activeAdminRoulette.items.push(itemString);
-                    // 모든 추가 그룹을 일반(general)으로 지정
                     activeAdminRoulette.itemGroups[itemString] = 'general';
                     addedCount++;
                 }
             }
             renderAdminList();
-            saveToCloud(); // 자동 저장
+            saveToCloud();
             console.log(`[일괄 추가] ${addedCount}개의 연속 번호 추가 완료`);
         }
 
-        // 방법 2: 텍스트 분할 대량 추가 로직 (보안 업데이트: 추가 시 그룹 상태 '일반' 강제 지정)
         window.generateBulkText = function() {
             const rawText = document.getElementById('bulkTextArea').value;
             if (!rawText.trim()) return;
@@ -980,7 +977,6 @@
                         return;
                     }
                     activeAdminRoulette.items.push(trimmed);
-                    // 모든 대량 항목을 일반(general)으로 지정
                     activeAdminRoulette.itemGroups[trimmed] = 'general';
                     addedCount++;
                 }
@@ -988,34 +984,37 @@
 
             document.getElementById('bulkTextArea').value = '';
             renderAdminList();
-            saveToCloud(); // 자동 저장
+            saveToCloud();
             console.log(`[일괄 추가] ${addedCount}개의 사용자 텍스트 항목 추가 완료`);
         }
 
-        // 단일 아이템 완전 삭제 (기어 팝업 내부)
         window.deleteSingleItem = function(index) {
             const removedItem = activeAdminRoulette.items[index];
             activeAdminRoulette.items.splice(index, 1);
-            delete activeAdminRoulette.itemGroups[removedItem];
+            // 중복된 아이템이 더이상 없을 때만 그룹 목록에서 완전히 키 삭제
+            if (!activeAdminRoulette.items.includes(removedItem)) {
+                delete activeAdminRoulette.itemGroups[removedItem];
+            }
             renderAdminList();
-            saveToCloud(); // 자동 저장
+            saveToCloud();
         }
 
-        // 현재 선택된 룰렛 전체 비우기
         window.clearCurrentAllItems = function() {
             activeAdminRoulette.items = [];
             activeAdminRoulette.itemGroups = {};
             renderAdminList();
-            saveToCloud(); // 자동 저장
+            saveToCloud();
         }
 
-        // 현재 선택된 룰렛 기본값 세팅 복원 (보안 업데이트: 모든 항목 '일반' 상태로 안전 리셋)
+        // 좌측 기본값을 숫자 없는 순수 "교사"와 "학생" 20개 교차 배열로 연동
         window.resetCurrentToDefault = function() {
             if (activeAdminRoulette.id === 1) {
-                activeAdminRoulette.items = ["1번", "2번", "3번", "4번", "5번", "6번", "7번", "8번"];
+                activeAdminRoulette.items = [
+                    "교사", "학생", "교사", "학생", "교사", "학생", "교사", "학생", "교사", "학생",
+                    "교사", "학생", "교사", "학생", "교사", "학생", "교사", "학생", "교사", "학생"
+                ];
                 activeAdminRoulette.itemGroups = {
-                    "1번": "general", "2번": "general", "3번": "general", "4번": "general",
-                    "5번": "general", "6번": "general", "7번": "general", "8번": "general"
+                    "교사": "general", "학생": "general"
                 };
             } else {
                 activeAdminRoulette.items = ["1번", "2번", "3번", "4번", "5번", "6번", "7번", "8번", "9번", "10번", "11번", "12번", "13번", "14번", "15번", "16번", "17번", "18번", "19번", "20번"];
@@ -1028,24 +1027,20 @@
                 };
             }
             renderAdminList();
-            saveToCloud(); // 자동 저장
+            saveToCloud();
         }
 
-        // 아이템 집단 실시간 교체
         window.setItemGroup = function(item, groupName) {
             activeAdminRoulette.itemGroups[item] = groupName;
             renderAdminList();
-            saveToCloud(); // 자동 저장
+            saveToCloud();
         }
 
 
-        // --- 8. 교대 선정 및 강제 선정 조작 로직 ---
-        
-        // 룰렛 회전 핸들링 범용 함수
+        // --- 8. PHYSICS & MANIPULATION ---
         function handleRouletteAction(r) {
             if (r.items.length === 0) return;
 
-            // 이미 해당 룰렛 결과 오버레이가 보이고 있다면 가려줌
             document.getElementById('resultOverlay' + r.id).classList.add('hidden');
 
             initAudio();
@@ -1060,11 +1055,9 @@
             }
         }
 
-        // 개별 동작용 버튼 연결
         document.getElementById('btnAction1').addEventListener('click', () => handleRouletteAction(r1));
         document.getElementById('btnAction2').addEventListener('click', () => handleRouletteAction(r2));
 
-        // 조작 알고리즘에 기반해 미리 당첨될 인덱스를 뽑는 핵심 함수
         function calculateManipulatedWinner(r) {
             if (r.items.length === 0) return 0;
 
@@ -1092,7 +1085,6 @@
                     });
                 }
 
-                // 조작 대상 그룹 설정이 아예 없거나 후보가 없으면 무작위 추출
                 if (candidates.length === 0) {
                     return Math.floor(Math.random() * r.items.length);
                 }
@@ -1105,7 +1097,6 @@
             return Math.floor(Math.random() * r.items.length);
         }
 
-        // 제어된 완만 감속을 위해 시작각과 목표 정지 각도 수립
         function setupControlledStopping(r, targetIndex) {
             r.state = 'stopping';
             r.currentStopFrame = 0;
@@ -1129,21 +1120,17 @@
         }
 
 
-        // --- 9. 관리자 보안 모달 & 세부 설정 로직 ---
-
-        // 비밀 설정 버튼 클릭 시: 패스워드 모달 노출
+        // --- 9. SECURITY & MODALS ---
         btnAdminGate.addEventListener('click', () => {
             adminPasswordInput.value = '';
             passwordModal.classList.remove('hidden');
             adminPasswordInput.focus();
         });
 
-        // 패스워드 모달 닫기
         btnCancelPass.addEventListener('click', () => {
             passwordModal.classList.add('hidden');
         });
 
-        // 엔터키 패스워드 승인 처리
         adminPasswordInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 verifyAdminPassword();
@@ -1164,24 +1151,20 @@
             }
         }
 
-        // 비밀 어드민 설정 오픈
         function openAdminSettings() {
-            switchAdminTab(r1); // 항상 좌측 룰렛을 먼저 보여줌
-            switchAddMethod('single'); // 추가 모드는 단일 추가로 초기화
+            switchAdminTab(r1);
+            switchAddMethod('single');
             adminSettingsModal.classList.remove('hidden');
         }
 
-        // 탭 스위칭 헬퍼
         function switchAdminTab(targetRoulette) {
             activeAdminRoulette = targetRoulette;
 
             if (targetRoulette.id === 1) {
-                // 좌측 탭 강조
                 tabBtn1.className = "flex-1 py-3 text-center text-sm font-extrabold border-b-2 border-purple-500 text-purple-400 focus:outline-none transition-all";
                 tabBtn2.className = "flex-1 py-3 text-center text-sm font-extrabold border-b-2 border-transparent text-slate-400 hover:text-slate-200 focus:outline-none transition-all";
                 addTitleLabel.innerHTML = `<i data-lucide="plus-circle" class="w-4 h-4 text-purple-400"></i> 좌측 룰렛 새 항목 추가`;
             } else {
-                // 우측 탭 강조
                 tabBtn1.className = "flex-1 py-3 text-center text-sm font-extrabold border-b-2 border-transparent text-slate-400 hover:text-slate-200 focus:outline-none transition-all";
                 tabBtn2.className = "flex-1 py-3 text-center text-sm font-extrabold border-b-2 border-pink-500 text-pink-400 focus:outline-none transition-all";
                 addTitleLabel.innerHTML = `<i data-lucide="plus-circle" class="w-4 h-4 text-pink-400"></i> 우측 룰렛 새 항목 추가`;
@@ -1196,7 +1179,6 @@
         tabBtn1.addEventListener('click', () => switchAdminTab(r1));
         tabBtn2.addEventListener('click', () => switchAdminTab(r2));
 
-        // 집단 분류 가이드 텍스트 업데이트
         function updateAdminHelperUI() {
             if (alternateToggle.checked) {
                 let nextGroupText = '마스터 집단';
@@ -1209,14 +1191,12 @@
             }
         }
 
-        // 교대 선정 토글 체인지
         alternateToggle.addEventListener('change', (e) => {
             activeAdminRoulette.alternateMode = e.target.checked;
             updateAdminHelperUI();
-            saveToCloud(); // 모드 변경 시 클라우드 자동 동기화
+            saveToCloud();
         });
 
-        // 설정 패널 최종 적용하고 닫기
         btnSaveAdmin.addEventListener('click', () => {
             adminSettingsModal.classList.add('hidden');
             drawRoulette(r1);
@@ -1230,18 +1210,19 @@
         });
 
 
-        // --- 10. 이원화된 결과창 전용 핸들러 함수군 ---
-
-        // 로컬 전용 당첨 항목 삭제 액션
+        // --- 10. LOCAL OVERLAYS ---
         window.deleteWinner = function(id) {
             const r = (id === 1) ? r1 : r2;
             if (r.lastWinnerIndex !== -1 && r.lastWinnerIndex < r.items.length) {
                 const winnerItem = r.items[r.lastWinnerIndex];
                 r.items.splice(r.lastWinnerIndex, 1);
-                delete r.itemGroups[winnerItem];
+                // 해당 항목이 마지막 남은 하나일 때만 그룹 매핑 정보 완전 삭제 (중복 대비)
+                if (!r.items.includes(winnerItem)) {
+                    delete r.itemGroups[winnerItem];
+                }
                 r.lastWinnerIndex = -1;
                 drawRoulette(r);
-                saveToCloud(); // 자동 동기화
+                saveToCloud();
 
                 if (!adminSettingsModal.classList.contains('hidden') && activeAdminRoulette.id === r.id) {
                     renderAdminList();
@@ -1250,20 +1231,17 @@
             document.getElementById('resultOverlay' + id).classList.add('hidden');
         };
 
-        // 로컬 결과창 닫기 (그대로 두기)
         window.closeWinner = function(id) {
             document.getElementById('resultOverlay' + id).classList.add('hidden');
         };
 
-        // 타이틀 제목 입력 보존 바인딩
         document.getElementById('titleInput1').addEventListener('change', () => saveToCloud());
         document.getElementById('titleInput2').addEventListener('change', () => saveToCloud());
         document.getElementById('titleInput1').addEventListener('blur', () => saveToCloud());
         document.getElementById('titleInput2').addEventListener('blur', () => saveToCloud());
 
 
-        // --- 11. [신규] 클라우드 동기화 코어 서비스 모듈 ---
-
+        // --- 11. CLOUD SYNCHRONIZATION ---
         function updateCloudIndicator(status) {
             const indicator = document.getElementById('cloudStatus');
             if (!indicator) return;
@@ -1296,7 +1274,6 @@
             }
         }
 
-        // 지연 저장을 위한 디바운스 타이머
         let saveDebounceTimer = null;
 
         async function saveToCloud() {
@@ -1328,7 +1305,7 @@
                     console.error("데이터 실시간 백업 실패:", err);
                     updateCloudIndicator('error');
                 }
-            }, 600); // 0.6초 뒤 백업 확정
+            }, 600);
         }
 
         async function loadFromCloud() {
@@ -1358,7 +1335,6 @@
                         }
                     }
                     
-                    // 화면 동기화 드로잉
                     drawRoulette(r1);
                     drawRoulette(r2);
                     
@@ -1367,7 +1343,7 @@
                     }
                     updateCloudIndicator('loaded');
                 } else {
-                    updateCloudIndicator('saved'); // 최초 구동 데이터 생성 전
+                    updateCloudIndicator('saved');
                 }
             } catch (err) {
                 console.error("데이터 로드 실패:", err);
@@ -1375,7 +1351,6 @@
             }
         }
 
-        // Firebase 이니셜 및 인증 세션 핸들러
         const setupFirebase = async () => {
             try {
                 if (typeof __firebase_config !== 'undefined' && __firebase_config) {
@@ -1385,7 +1360,6 @@
                     auth = getAuth(app);
                     db = getFirestore(app);
 
-                    // 인증 처리 선행 
                     if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                         await signInWithCustomToken(auth, __initial_auth_token);
                     } else {
@@ -1408,7 +1382,7 @@
         };
 
 
-        // --- 12. 시작점 및 전역 스크립트 모듈 바인딩 ---
+        // --- 12. INITIALIZATION ---
         window.onload = () => {
             lucide.createIcons();
             drawRoulette(r1);
@@ -1416,7 +1390,6 @@
             setupFirebase();
         };
 
-        // 외부 HTML 이벤트와 연동을 위해 window 객체에 핵심 모듈 함수 연결
         window.deleteWinner = deleteWinner;
         window.closeWinner = closeWinner;
         window.deleteSingleItem = deleteSingleItem;
