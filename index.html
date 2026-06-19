@@ -39,17 +39,24 @@
 </head>
 <body class="text-white min-h-screen flex flex-col justify-between overflow-x-hidden selection:bg-pink-500 selection:text-white relative">
 
-    <!-- 헤더 영역 (비밀 설정 버튼에서 패스워드 표시 제거) -->
+    <!-- 헤더 영역 (비밀 설정 버튼 및 클라우드 동기화 상태 등 탑재) -->
     <header class="p-4 border-b border-purple-950/40 bg-black/40 backdrop-blur-md flex flex-col sm:flex-row justify-between items-center gap-4 px-6 z-10">
-        <button id="btnAdminGate" class="flex items-center gap-2 px-4 py-2.5 bg-slate-900/90 hover:bg-purple-900/60 border border-purple-800/50 rounded-xl transition-all text-purple-300 hover:text-white shadow-lg active:scale-95 text-sm font-bold shrink-0">
-            <i data-lucide="settings" class="w-4 h-4 animate-spin" style="animation-duration: 8s;"></i>
-            비밀 설정
-        </button>
+        <div class="flex items-center gap-4">
+            <button id="btnAdminGate" class="flex items-center gap-2 px-4 py-2.5 bg-slate-900/90 hover:bg-purple-900/60 border border-purple-800/50 rounded-xl transition-all text-purple-300 hover:text-white shadow-lg active:scale-95 text-sm font-bold shrink-0">
+                <i data-lucide="settings" class="w-4 h-4 animate-spin" style="animation-duration: 8s;"></i>
+                비밀 설정
+            </button>
+            <!-- [신규] 클라우드 동기화 상태 인디케이터 -->
+            <div id="cloudStatus" class="text-xs text-slate-400 bg-slate-950/60 border border-slate-800/80 px-3 py-1.5 rounded-full flex items-center gap-1.5 font-medium">
+                <span class="w-1.5 h-1.5 rounded-full bg-slate-500 animate-pulse"></span>
+                클라우드 연결 확인 중
+            </div>
+        </div>
         <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-pink-500 via-purple-400 to-indigo-400 bg-clip-text text-transparent flex items-center justify-center gap-2">
             <i data-lucide="compass" class="w-7 h-7 text-pink-500 animate-spin" style="animation-duration: 15s;"></i>
             럭키 듀얼 네온 룰렛
         </h1>
-        <div class="text-xs text-purple-300/40 sm:block hidden">독립형 개별 동작 시스템</div>
+        <div class="text-xs text-purple-300/40 sm:block hidden">자동 저장 기능 탑재</div>
     </header>
 
     <!-- 메인 대시보드 구조 (크기가 확장된 좌측 룰렛 & 우측 룰렛 스플릿 레이아웃) -->
@@ -62,6 +69,11 @@
                 <input type="text" id="titleInput1" value="좌측 룰렛" 
                     class="bg-transparent border-b-2 border-purple-500/20 focus:border-purple-500 text-center font-extrabold text-xl sm:text-2xl text-purple-300 focus:text-white focus:outline-none transition-all w-full max-w-[280px] py-1 placeholder-purple-800/50" 
                     placeholder="제목 입력 (예: 1조 질문자)" title="클릭하여 제목을 자유롭게 수정하세요">
+            </div>
+            
+            <div class="absolute top-4 left-4 px-3 py-1 bg-purple-900/50 border border-purple-700/40 rounded-full text-xs font-bold text-purple-300 flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-purple-500 animate-ping"></span>
+                좌측 룰렛
             </div>
             
             <!-- 룰렛 드로잉 본체 -->
@@ -337,8 +349,17 @@
     </footer>
 
     <!-- 자바스크립트 엔진 구현 -->
-    <script>
-        // --- 1. 독립적인 룰렛 데이터 구조 (기본 그룹은 모두 'general'로 초기화) ---
+    <script type="module">
+        // --- 0. [신규] Firebase SDK 모듈 임포트 및 자동 저장 엔진 구축 ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        let db = null;
+        let auth = null;
+        let appId = 'default-app-id';
+
+        // 룰렛 데이터 구조 (기본 그룹은 모두 'general'로 초기화)
         const r1 = {
             id: 1,
             name: "좌측 룰렛",
@@ -497,7 +518,7 @@
         }
 
 
-        // --- 3. 룰렛 캔버스 렌더링 로직 (마스터/러너 텍스트 표시 로직 완전 제거) ---
+        // --- 3. 룰렛 캔버스 렌더링 로직 ---
         function drawRoulette(r) {
             const canvas = document.getElementById(r.canvasId);
             const ctx = canvas.getContext('2d');
@@ -563,7 +584,7 @@
                 ctx.fillStyle = grad;
                 ctx.fill();
 
-                // 텍스트 그리기 (보안 업데이트: 집단 구분 표시 코드 완전 삭제)
+                // 텍스트 그리기
                 ctx.save();
                 ctx.rotate(startAngle + arcSize / 2);
                 ctx.textAlign = 'right';
@@ -693,7 +714,10 @@
             }
             updateAdminHelperUI();
 
-            // 당당한 로컬 전용 오버레이 바인딩 및 노출
+            // 당첨 룰렛 추적 보존
+            window.activeWinningRoulette = r;
+
+            // UI 표시
             const overlay = document.getElementById('resultOverlay' + r.id);
             const display = document.getElementById('winnerDisplay' + r.id);
             display.innerText = winnerText;
@@ -761,7 +785,6 @@
             confettiCanvas.height = window.innerHeight;
         }
 
-        // 폭죽 트리거 위치 수용 가능하도록 개편
         function triggerConfetti(spawnX, spawnY) {
             resizeConfetti();
             confettiCanvas.classList.remove('hidden');
@@ -843,7 +866,6 @@
                 const row = document.createElement('div');
                 row.className = "grid grid-cols-12 gap-2 p-3 items-center text-sm border-b border-slate-800";
                 
-                // 분류 지정용 3단 토글 버튼 마크업 및 휴지통 삭제 기능 통합
                 row.innerHTML = `
                     <div class="col-span-5 font-semibold text-slate-300 truncate">${escapeHTML(item)}</div>
                     <div class="col-span-5 flex justify-center gap-1">
@@ -877,24 +899,23 @@
             
             const value = itemInput.value.trim();
             if (value) {
-                // 중복 추가 체크
                 if (activeAdminRoulette.items.includes(value)) {
                     itemInput.classList.add('border-red-500');
                     setTimeout(() => itemInput.classList.remove('border-red-500'), 500);
                     return;
                 }
                 activeAdminRoulette.items.push(value);
-                // 추가 문항 역시 기본값 '일반(general)'로 설정
                 if (!activeAdminRoulette.itemGroups[value]) {
                     activeAdminRoulette.itemGroups[value] = 'general';
                 }
                 itemInput.value = '';
                 renderAdminList();
+                saveToCloud(); // 자동 저장 유도
             }
         });
 
         // 입력 편의 탭 전환 및 일괄 추가 함수군
-        function switchAddMethod(method) {
+        window.switchAddMethod = function(method) {
             const btnSingle = document.getElementById('addMethodBtnSingle');
             const btnBulk = document.getElementById('addMethodBtnBulk');
             const containerSingle = document.getElementById('addSingleContainer');
@@ -940,6 +961,7 @@
                 }
             }
             renderAdminList();
+            saveToCloud(); // 자동 저장
             console.log(`[일괄 추가] ${addedCount}개의 연속 번호 추가 완료`);
         }
 
@@ -966,6 +988,7 @@
 
             document.getElementById('bulkTextArea').value = '';
             renderAdminList();
+            saveToCloud(); // 자동 저장
             console.log(`[일괄 추가] ${addedCount}개의 사용자 텍스트 항목 추가 완료`);
         }
 
@@ -975,6 +998,7 @@
             activeAdminRoulette.items.splice(index, 1);
             delete activeAdminRoulette.itemGroups[removedItem];
             renderAdminList();
+            saveToCloud(); // 자동 저장
         }
 
         // 현재 선택된 룰렛 전체 비우기
@@ -982,6 +1006,7 @@
             activeAdminRoulette.items = [];
             activeAdminRoulette.itemGroups = {};
             renderAdminList();
+            saveToCloud(); // 자동 저장
         }
 
         // 현재 선택된 룰렛 기본값 세팅 복원 (보안 업데이트: 모든 항목 '일반' 상태로 안전 리셋)
@@ -1003,12 +1028,14 @@
                 };
             }
             renderAdminList();
+            saveToCloud(); // 자동 저장
         }
 
         // 아이템 집단 실시간 교체
         window.setItemGroup = function(item, groupName) {
             activeAdminRoulette.itemGroups[item] = groupName;
             renderAdminList();
+            saveToCloud(); // 자동 저장
         }
 
 
@@ -1186,6 +1213,7 @@
         alternateToggle.addEventListener('change', (e) => {
             activeAdminRoulette.alternateMode = e.target.checked;
             updateAdminHelperUI();
+            saveToCloud(); // 모드 변경 시 클라우드 자동 동기화
         });
 
         // 설정 패널 최종 적용하고 닫기
@@ -1213,8 +1241,8 @@
                 delete r.itemGroups[winnerItem];
                 r.lastWinnerIndex = -1;
                 drawRoulette(r);
+                saveToCloud(); // 자동 동기화
 
-                // 어드민 세팅창이 열려있고 타겟이 해당 룰렛인 경우 실시간 목록도 동기화
                 if (!adminSettingsModal.classList.contains('hidden') && activeAdminRoulette.id === r.id) {
                     renderAdminList();
                 }
@@ -1227,13 +1255,174 @@
             document.getElementById('resultOverlay' + id).classList.add('hidden');
         };
 
+        // 타이틀 제목 입력 보존 바인딩
+        document.getElementById('titleInput1').addEventListener('change', () => saveToCloud());
+        document.getElementById('titleInput2').addEventListener('change', () => saveToCloud());
+        document.getElementById('titleInput1').addEventListener('blur', () => saveToCloud());
+        document.getElementById('titleInput2').addEventListener('blur', () => saveToCloud());
 
-        // --- 11. 시작점 진입 및 초기화 그리기 ---
+
+        // --- 11. [신규] 클라우드 동기화 코어 서비스 모듈 ---
+
+        function updateCloudIndicator(status) {
+            const indicator = document.getElementById('cloudStatus');
+            if (!indicator) return;
+
+            switch(status) {
+                case 'saving':
+                    indicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-ping"></span> ☁️ 실시간 저장 중...`;
+                    indicator.className = "text-xs text-amber-400 bg-slate-950/60 border border-amber-900/30 px-3 py-1.5 rounded-full flex items-center gap-1.5 font-medium";
+                    break;
+                case 'saved':
+                    indicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> ☁️ 설정 동기화 완료`;
+                    indicator.className = "text-xs text-emerald-400 bg-slate-950/60 border border-emerald-900/30 px-3 py-1.5 rounded-full flex items-center gap-1.5 font-medium";
+                    break;
+                case 'loading':
+                    indicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span> ☁️ 세팅 불러오는 중...`;
+                    indicator.className = "text-xs text-blue-400 bg-slate-950/60 border border-blue-900/30 px-3 py-1.5 rounded-full flex items-center gap-1.5 font-medium";
+                    break;
+                case 'loaded':
+                    indicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span> ☁️ 이전 세팅 복원됨`;
+                    indicator.className = "text-xs text-indigo-400 bg-slate-950/60 border border-indigo-900/30 px-3 py-1.5 rounded-full flex items-center gap-1.5 font-medium";
+                    break;
+                case 'error':
+                    indicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span> ⚠️ 클라우드 연결 해제됨`;
+                    indicator.className = "text-xs text-red-400 bg-slate-950/60 border border-red-900/30 px-3 py-1.5 rounded-full flex items-center gap-1.5 font-medium";
+                    break;
+                case 'local':
+                    indicator.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-slate-500"></span> 💻 오프라인 모드`;
+                    indicator.className = "text-xs text-slate-400 bg-slate-950/60 border border-slate-800/80 px-3 py-1.5 rounded-full flex items-center gap-1.5 font-medium";
+                    break;
+            }
+        }
+
+        // 지연 저장을 위한 디바운스 타이머
+        let saveDebounceTimer = null;
+
+        async function saveToCloud() {
+            if (!db || !auth || !auth.currentUser) return;
+            
+            updateCloudIndicator('saving');
+
+            if (saveDebounceTimer) clearTimeout(saveDebounceTimer);
+
+            saveDebounceTimer = setTimeout(async () => {
+                try {
+                    const configDoc = doc(db, 'artifacts', appId, 'public', 'data', 'rouletteConfig', 'state');
+                    await setDoc(configDoc, {
+                        r1: {
+                            items: r1.items,
+                            itemGroups: r1.itemGroups,
+                            alternateMode: r1.alternateMode,
+                            title: document.getElementById('titleInput1').value
+                        },
+                        r2: {
+                            items: r2.items,
+                            itemGroups: r2.itemGroups,
+                            alternateMode: r2.alternateMode,
+                            title: document.getElementById('titleInput2').value
+                        }
+                    });
+                    updateCloudIndicator('saved');
+                } catch (err) {
+                    console.error("데이터 실시간 백업 실패:", err);
+                    updateCloudIndicator('error');
+                }
+            }, 600); // 0.6초 뒤 백업 확정
+        }
+
+        async function loadFromCloud() {
+            if (!db || !auth || !auth.currentUser) return;
+            
+            updateCloudIndicator('loading');
+            try {
+                const configDoc = doc(db, 'artifacts', appId, 'public', 'data', 'rouletteConfig', 'state');
+                const snap = await getDoc(configDoc);
+                
+                if (snap.exists()) {
+                    const data = snap.data();
+                    if (data.r1) {
+                        r1.items = data.r1.items || r1.items;
+                        r1.itemGroups = data.r1.itemGroups || r1.itemGroups;
+                        r1.alternateMode = data.r1.alternateMode !== undefined ? data.r1.alternateMode : r1.alternateMode;
+                        if (data.r1.title !== undefined) {
+                            document.getElementById('titleInput1').value = data.r1.title;
+                        }
+                    }
+                    if (data.r2) {
+                        r2.items = data.r2.items || r2.items;
+                        r2.itemGroups = data.r2.itemGroups || r2.itemGroups;
+                        r2.alternateMode = data.r2.alternateMode !== undefined ? data.r2.alternateMode : r2.alternateMode;
+                        if (data.r2.title !== undefined) {
+                            document.getElementById('titleInput2').value = data.r2.title;
+                        }
+                    }
+                    
+                    // 화면 동기화 드로잉
+                    drawRoulette(r1);
+                    drawRoulette(r2);
+                    
+                    if (!adminSettingsModal.classList.contains('hidden')) {
+                        renderAdminList();
+                    }
+                    updateCloudIndicator('loaded');
+                } else {
+                    updateCloudIndicator('saved'); // 최초 구동 데이터 생성 전
+                }
+            } catch (err) {
+                console.error("데이터 로드 실패:", err);
+                updateCloudIndicator('error');
+            }
+        }
+
+        // Firebase 이니셜 및 인증 세션 핸들러
+        const setupFirebase = async () => {
+            try {
+                if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                    appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+                    const firebaseConfig = JSON.parse(__firebase_config);
+                    const app = initializeApp(firebaseConfig);
+                    auth = getAuth(app);
+                    db = getFirestore(app);
+
+                    // 인증 처리 선행 
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await signInWithCustomToken(auth, __initial_auth_token);
+                    } else {
+                        await signInAnonymously(auth);
+                    }
+
+                    onAuthStateChanged(auth, (user) => {
+                        if (user) {
+                            loadFromCloud();
+                        }
+                    });
+                } else {
+                    updateCloudIndicator('local');
+                    console.warn("로컬 스토리지 한계 세션 모드 구동");
+                }
+            } catch (err) {
+                console.error("Firebase 로딩 오류:", err);
+                updateCloudIndicator('error');
+            }
+        };
+
+
+        // --- 12. 시작점 및 전역 스크립트 모듈 바인딩 ---
         window.onload = () => {
             lucide.createIcons();
             drawRoulette(r1);
             drawRoulette(r2);
+            setupFirebase();
         };
+
+        // 외부 HTML 이벤트와 연동을 위해 window 객체에 핵심 모듈 함수 연결
+        window.deleteWinner = deleteWinner;
+        window.closeWinner = closeWinner;
+        window.deleteSingleItem = deleteSingleItem;
+        window.clearCurrentAllItems = clearCurrentAllItems;
+        window.resetCurrentToDefault = resetCurrentToDefault;
+        window.setItemGroup = setItemGroup;
     </script>
 </body>
 </html>
